@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Genomic Sequence Analyzer — COAL Project</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@300;400;500;700&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --black:   #030b10;
+    --deep:    #060f17;
+    --panel:   #0b1a24;
+    --border:  #0f2d3f;
+    --green:   #00ff88;
+    --cyan:    #00d4ff;
+    --amber:   #ffb800;
+    --red:     #ff4466;
+    --white:   #e8f4f8;
+    --muted:   #5a8a9f;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Rajdhani', sans-serif;
+    background: var(--black);
+    color: var(--white);
+    overflow-x: hidden;
+    cursor: crosshair;
+  }
+
+  /* ── CANVAS BACKGROUND ── */
+  #dna-canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    opacity: 0.18;
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--deep); }
+  ::-webkit-scrollbar-thumb { background: var(--green); border-radius: 2px; }
+
+  /* ── SLIDE SYSTEM ── */
+  .slide {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 80px 40px;
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .slide::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at var(--gx, 50%) var(--gy, 50%), rgba(0,255,136,0.04) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* ── SLIDE NUMBERS ── */
+  .slide-num {
+    position: absolute;
+    top: 24px; right: 32px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 3px;
+  }
+
+  /* ── HERO SLIDE ── */
+  #hero {
+    --gx: 30%; --gy: 40%;
+    text-align: center;
+    gap: 32px;
+  }
+
+  .hero-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 6px;
+    color: var(--green);
+    text-transform: uppercase;
+    animation: fadeUp 0.8s ease both;
+  }
+
+  .hero-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(36px, 6vw, 72px);
+    font-weight: 900;
+    line-height: 1.05;
+    letter-spacing: -1px;
+    background: linear-gradient(135deg, var(--green) 0%, var(--cyan) 50%, var(--green) 100%);
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: fadeUp 0.8s 0.15s ease both, shimmer 4s 1s linear infinite;
+  }
+
+  @keyframes shimmer {
+    0%,100% { background-position: 0% 50%; }
+    50%      { background-position: 100% 50%; }
+  }
+
+  .hero-sub {
+    font-size: 20px;
+    font-weight: 300;
+    color: var(--muted);
+    max-width: 560px;
+    line-height: 1.6;
+    animation: fadeUp 0.8s 0.3s ease both;
+  }
+
+  .hero-badges {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    animation: fadeUp 0.8s 0.45s ease both;
+  }
+
+  .badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 6px 16px;
+    border: 1px solid;
+    border-radius: 2px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .badge-green { border-color: var(--green); color: var(--green); }
+  .badge-cyan  { border-color: var(--cyan);  color: var(--cyan);  }
+  .badge-amber { border-color: var(--amber); color: var(--amber); }
+
+  .hero-dna-bar {
+    display: flex;
+    gap: 4px;
+    animation: fadeUp 0.8s 0.6s ease both;
+  }
+
+  .dna-base {
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    border: 1px solid;
+    border-radius: 4px;
+    animation: basePulse 2s infinite;
+  }
+  .dna-base:nth-child(1) { color: var(--green); border-color: var(--green); animation-delay: 0s; }
+  .dna-base:nth-child(2) { color: var(--cyan);  border-color: var(--cyan);  animation-delay: 0.2s; }
+  .dna-base:nth-child(3) { color: var(--amber); border-color: var(--amber); animation-delay: 0.4s; }
+  .dna-base:nth-child(4) { color: var(--red);   border-color: var(--red);   animation-delay: 0.6s; }
+  .dna-base:nth-child(5) { color: var(--green); border-color: var(--green); animation-delay: 0.8s; }
+  .dna-base:nth-child(6) { color: var(--cyan);  border-color: var(--cyan);  animation-delay: 1.0s; }
+  .dna-base:nth-child(7) { color: var(--amber); border-color: var(--amber); animation-delay: 1.2s; }
+  .dna-base:nth-child(8) { color: var(--red);   border-color: var(--red);   animation-delay: 1.4s; }
+
+  @keyframes basePulse {
+    0%,100% { opacity: 0.5; transform: scale(1); }
+    50%      { opacity: 1;   transform: scale(1.08); }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── SECTION HEADER ── */
+  .section-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 5px;
+    color: var(--green);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .section-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(24px, 4vw, 42px);
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--white);
+  }
+
+  .section-line {
+    width: 60px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--green), transparent);
+    margin-bottom: 48px;
+  }
+
+  /* ── ARCHITECTURE SLIDE ── */
+  #architecture { --gx: 70%; --gy: 30%; }
+
+  .arch-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    max-width: 900px;
+    width: 100%;
+  }
+
+  .arch-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 28px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s, transform 0.3s;
+  }
+  .arch-card:hover {
+    border-color: var(--green);
+    transform: translateY(-3px);
+  }
+  .arch-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px; height: 100%;
+    background: var(--accent, var(--green));
+  }
+
+  .arch-card-icon {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 28px;
+    margin-bottom: 12px;
+    color: var(--accent, var(--green));
+  }
+
+  .arch-card-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--white);
+    margin-bottom: 8px;
+  }
+
+  .arch-card-body {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  .arch-card-mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--accent, var(--green));
+    margin-top: 10px;
+    display: block;
+  }
+
+  /* ── MEMORY MAP ── */
+  .memory-map {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 800px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .mem-row {
+    display: grid;
+    grid-template-columns: 140px 1fr 200px;
+    align-items: stretch;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.2s;
+  }
+  .mem-row:last-child { border-bottom: none; }
+  .mem-row:hover { background: rgba(0,255,136,0.03); }
+
+  .mem-addr {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    padding: 12px 16px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+  }
+
+  .mem-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .mem-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .mem-desc {
+    font-size: 12px;
+    color: var(--muted);
+    padding: 12px 16px;
+    border-left: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+  }
+
+  /* ── FEATURE SLIDES ── */
+  .feature-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    max-width: 1000px;
+    width: 100%;
+    align-items: center;
+  }
+
+  .feature-text h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: var(--green);
+    margin-bottom: 16px;
+  }
+
+  .feature-text h2 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(20px, 3vw, 32px);
+    font-weight: 700;
+    margin-bottom: 20px;
+    line-height: 1.2;
+  }
+
+  .feature-text p {
+    font-size: 16px;
+    color: var(--muted);
+    line-height: 1.8;
+    margin-bottom: 16px;
+  }
+
+  .highlight {
+    color: var(--green);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+  }
+
+  /* ── CODE BLOCK ── */
+  .code-block {
+    background: #020810;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.8;
+  }
+
+  .code-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .code-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .cd-red  { background: #ff5f57; }
+  .cd-yel  { background: #febc2e; }
+  .cd-grn  { background: #28c840; }
+
+  .code-fname {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: 8px;
+    letter-spacing: 1px;
+  }
+
+  .code-body { padding: 20px; overflow-x: auto; }
+
+  .code-ln {
+    display: grid;
+    grid-template-columns: 32px 1fr;
+    gap: 16px;
+  }
+  .ln-num { color: #1a3a4f; user-select: none; text-align: right; }
+
+  .t-comment { color: #2d6a7a; }
+  .t-label   { color: var(--amber); }
+  .t-instr   { color: var(--cyan); }
+  .t-reg     { color: var(--green); }
+  .t-num     { color: #c678dd; }
+  .t-str     { color: #e06c75; }
+  .t-kw      { color: var(--amber); }
+
+  /* ── LOOKUP TABLE VIZ ── */
+  .lookup-table {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    width: 100%;
+  }
+
+  .lt-cell {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s;
+  }
+  .lt-cell:hover { border-color: var(--cyan); }
+  .lt-cell::after {
+    content: '→';
+    position: absolute;
+    top: 50%; right: -20px;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 18px;
+    transition: right 0.3s, color 0.3s;
+  }
+  .lt-cell:last-child::after { display: none; }
+  .lt-cell:hover::after { right: -18px; color: var(--cyan); }
+
+  .lt-from {
+    font-family: 'Orbitron', monospace;
+    font-size: 28px;
+    font-weight: 900;
+    margin-bottom: 4px;
+  }
+  .lt-arrow { color: var(--muted); font-size: 18px; margin: 4px 0; }
+  .lt-to {
+    font-family: 'Orbitron', monospace;
+    font-size: 28px;
+    font-weight: 900;
+  }
+  .lt-hex {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  /* ── GC CONTENT VISUAL ── */
+  .gc-meter {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 28px;
+  }
+
+  .gc-seq {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 24px;
+  }
+
+  .gc-base {
+    width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    transition: all 0.4s;
+  }
+
+  .gc-base.is-gc {
+    background: rgba(0,255,136,0.15);
+    border-color: var(--green);
+    color: var(--green);
+    animation: gcPop 0.4s ease;
+  }
+  .gc-base.is-at {
+    background: rgba(90,138,159,0.1);
+    border-color: var(--border);
+    color: var(--muted);
+  }
+
+  @keyframes gcPop {
+    0%   { transform: scale(0.8); }
+    60%  { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+
+  .gc-bar-wrap {
+    background: var(--deep);
+    border-radius: 4px;
+    height: 12px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+
+  .gc-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--green), var(--cyan));
+    border-radius: 4px;
+    width: 0%;
+    transition: width 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .gc-label {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .gc-pct {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 36px;
+    font-weight: 900;
+    color: var(--green);
+    text-align: center;
+    margin-top: 16px;
+  }
+
+  /* ── MOTIF SEARCH VIZ ── */
+  .motif-scan {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+  }
+
+  .motif-seq-row {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+
+  .m-base {
+    width: 34px; height: 34px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+    position: relative;
+    transition: all 0.3s;
+  }
+
+  .m-base.match {
+    background: rgba(0,212,255,0.2);
+    border-color: var(--cyan);
+    color: var(--cyan);
+    transform: translateY(-4px);
+  }
+
+  .m-idx {
+    position: absolute;
+    bottom: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+  }
+
+  .motif-found-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,255,136,0.1);
+    border: 1px solid var(--green);
+    border-radius: 4px;
+    padding: 10px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--green);
+    margin-top: 28px;
+  }
+
+  .motif-found-badge::before {
+    content: '▶';
+    font-size: 10px;
+  }
+
+  /* ── VIVA TIPS ── */
+  #viva { --gx: 50%; --gy: 60%; }
+
+  .tips-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    max-width: 1000px;
+    width: 100%;
+  }
+
+  .tip-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 32px 24px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s;
+  }
+  .tip-card:hover { border-color: var(--amber); transform: translateY(-4px); }
+
+  .tip-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--amber), transparent);
+  }
+
+  .tip-num {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 48px;
+    font-weight: 900;
+    color: rgba(255,184,0,0.1);
+    position: absolute;
+    top: 12px; right: 20px;
+    line-height: 1;
+  }
+
+  .tip-icon {
+    font-size: 24px;
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .tip-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--amber);
+    margin-bottom: 12px;
+  }
+
+  .tip-body {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
+  .tip-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--green);
+    background: rgba(0,255,136,0.06);
+    border: 1px solid rgba(0,255,136,0.15);
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin-top: 12px;
+    display: block;
+    line-height: 1.6;
+  }
+
+  /* ── CREDITS SLIDE ── */
+  #credits {
+    --gx: 50%; --gy: 80%;
+    text-align: center;
+    gap: 24px;
+  }
+
+  .credits-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    letter-spacing: 6px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .credits-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(28px, 5vw, 56px);
+    font-weight: 900;
+    color: var(--white);
+  }
+
+  .credits-seq {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: var(--muted);
+    letter-spacing: 4px;
+  }
+
+  .credits-seq span { animation: seqFade 1.8s infinite; }
+  .credits-seq span:nth-child(1) { animation-delay: 0s; }
+  .credits-seq span:nth-child(2) { animation-delay: 0.25s; }
+  .credits-seq span:nth-child(3) { animation-delay: 0.5s; }
+  .credits-seq span:nth-child(4) { animation-delay: 0.75s; }
+
+  @keyframes seqFade {
+    0%,100% { color: var(--muted); }
+    50%      { color: var(--green); }
+  }
+
+  /* ── NAV DOTS ── */
+  .nav-dots {
+    position: fixed;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .nav-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--border);
+    border: 1px solid var(--muted);
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  .nav-dot.active, .nav-dot:hover {
+    background: var(--green);
+    border-color: var(--green);
+    transform: scale(1.5);
+  }
+
+  /* ── SCANLINE OVERLAY ── */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent 0px,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+  }
+
+  /* ── UTILITY ── */
+  .center { text-align: center; }
+  .mx-auto { margin-left: auto; margin-right: auto; }
+  .full-w { width: 100%; max-width: 900px; }
+
+  /* ── GLOW PULSE ── */
+  .glow-green { text-shadow: 0 0 20px rgba(0,255,136,0.5); }
+  .glow-cyan  { text-shadow: 0 0 20px rgba(0,212,255,0.5); }
+
+  /* ── REVEAL ANIMATION ── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(32px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    .arch-grid, .feature-layout, .tips-grid { grid-template-columns: 1fr; }
+    .lookup-table { grid-template-columns: repeat(2, 1fr); }
+    .lt-cell::after { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="dna-canvas"></canvas>
+
+<!-- NAV DOTS -->
+<div class="nav-dots" id="nav-dots"></div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 1 — HERO
+════════════════════════════════════════════════ -->
+<section class="slide" id="hero" data-label="Intro">
+  <div class="slide-num">01 / 07</div>
+  <div class="hero-eyebrow">COAL End-Semester Project · Bioinformatics</div>
+  <h1 class="hero-title">Genomic Sequence<br>Analyzer</h1>
+  <p class="hero-sub">A 16-bit x86 Assembly program for low-level DNA sequence processing, built for TASM / DOSBox.</p>
+  <div class="hero-badges">
+    <span class="badge badge-green">16-bit x86</span>
+    <span class="badge badge-cyan">TASM / DOSBox</span>
+    <span class="badge badge-amber">.MODEL SMALL</span>
+  </div>
+  <div class="hero-dna-bar">
+    <div class="dna-base">A</div>
+    <div class="dna-base">T</div>
+    <div class="dna-base">G</div>
+    <div class="dna-base">C</div>
+    <div class="dna-base">A</div>
+    <div class="dna-base">T</div>
+    <div class="dna-base">G</div>
+    <div class="dna-base">C</div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 2 — ARCHITECTURE
+════════════════════════════════════════════════ -->
+<section class="slide" id="architecture" data-label="Architecture">
+  <div class="slide-num">02 / 07</div>
+  <div class="center reveal">
+    <div class="section-tag">System Design</div>
+    <h2 class="section-title">Program Architecture</h2>
+    <div class="section-line mx-auto"></div>
+  </div>
+  <div class="arch-grid reveal">
+    <div class="arch-card" style="--accent: var(--green);">
+      <div class="arch-card-icon">DS</div>
+      <div class="arch-card-title">Data Segment</div>
+      <div class="arch-card-body">Buffers, '$'-terminated strings, GC counter, complement lookup table, and runtime flags — all defined in <code>.DATA</code>.</div>
+      <span class="arch-card-mono">.MODEL SMALL → DS ≤ 64 KB</span>
+    </div>
+    <div class="arch-card" style="--accent: var(--cyan);">
+      <div class="arch-card-icon">CS</div>
+      <div class="arch-card-title">Code Segment</div>
+      <div class="arch-card-body">MAIN PROC, menu loop, four feature routines, and helper PROCs — all within one flat code segment.</div>
+      <span class="arch-card-mono">INT 21h for all I/O</span>
+    </div>
+    <div class="arch-card" style="--accent: var(--amber);">
+      <div class="arch-card-icon">SS</div>
+      <div class="arch-card-title">Stack Segment</div>
+      <div class="arch-card-body">256-byte stack declared with <code>.STACK 100h</code>. PUSH/POP preserves registers across PROC calls.</div>
+      <span class="arch-card-mono">.STACK 100h = 256 bytes</span>
+    </div>
+    <div class="arch-card" style="--accent: var(--red);">
+      <div class="arch-card-icon">AX</div>
+      <div class="arch-card-title">Registers Only</div>
+      <div class="arch-card-body">Only 16-bit registers: AX BX CX DX SI DI BP SP. No 32-bit extensions — pure 8086 constraint.</div>
+      <span class="arch-card-mono">mov ax, @data / mov ds, ax</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 3 — DATA SEGMENT / MEMORY MAP
+════════════════════════════════════════════════ -->
+<section class="slide" id="memory" data-label="Memory">
+  <div class="slide-num">03 / 07</div>
+  <div class="center reveal">
+    <div class="section-tag">Memory Layout</div>
+    <h2 class="section-title">Data Segment Map</h2>
+    <div class="section-line mx-auto"></div>
+  </div>
+  <div class="memory-map full-w reveal">
+    <div class="mem-row" style="background: rgba(0,255,136,0.04);">
+      <div class="mem-addr">msg_welcome…</div>
+      <div class="mem-name"><div class="mem-dot" style="background:var(--green)"></div><span style="color:var(--green)">UI Strings</span></div>
+      <div class="mem-desc">Menu prompts, headers, error messages — '$' terminated for INT 21h/09h</div>
+    </div>
+    <div class="mem-row">
+      <div class="mem-addr">dna_buf_max</div>
+      <div class="mem-name"><div class="mem-dot" style="background:var(--cyan)"></div><span style="color:var(--cyan)">DNA Input Buffer</span></div>
+      <div class="mem-desc">3-byte DOS format: max(101), len, then 101 chars. Filled by INT 21h/0Ah</div>
+    </div>
+    <div class="mem-row">
+      <div class="mem-addr">mot_buf_max</div>
+      <div class="mem-name"><div class="mem-dot" style="background:var(--cyan)"></div><span style="color:var(--cyan)">Motif Buffer</span></div>
+      <div class="mem-desc">Same DOS format, 4 bytes — holds exactly 3 bases + length byte</div>
+    </div>
+    <div class="mem-row">
+      <div class="mem-addr">comp_table</div>
+      <div class="mem-name"><div class="mem-dot" style="background:var(--amber)"></div><span style="color:var(--amber)">Lookup Table</span></div>
+      <div class="mem-desc">84 bytes. Index = ASCII code of base → value = ASCII code of complement</div>
+    </div>
+    <div class="mem-row">
+      <div class="mem-addr">seq_len DW</div>
+      <div class="mem-name"><div class="mem-dot" style="background:var(--red)"></div><span style="color:var(--red)">Runtime Variables</span></div>
+      <div class="mem-desc">seq_len, gc_count, found_idx (all DW = 16-bit), seq_ready flag (DB)</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 4 — COMPLEMENT + LOOKUP TABLE
+════════════════════════════════════════════════ -->
+<section class="slide" id="complement" data-label="Complement">
+  <div class="slide-num">04 / 07</div>
+  <div class="feature-layout">
+    <div class="feature-text reveal">
+      <h3>Feature 01</h3>
+      <h2>Complement<br>Generator</h2>
+      <p>Each base is looked up in a pre-built <span class="highlight">Translation Table</span> in the Data Segment. One memory read replaces 20 conditional branches.</p>
+      <p>Load base → use ASCII code as table index → write complement. Pure O(n) with zero branching per character.</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dot cd-red"></div>
+          <div class="code-dot cd-yel"></div>
+          <div class="code-dot cd-grn"></div>
+          <span class="code-fname">complement_loop</span>
+        </div>
+        <div class="code-body">
+<div class="code-ln"><span class="ln-num">1</span><span><span class="t-instr">mov</span>  <span class="t-reg">al</span>, [<span class="t-reg">si</span>]          <span class="t-comment">; load base → AL register</span></span></div>
+<div class="code-ln"><span class="ln-num">2</span><span><span class="t-instr">xor</span>  <span class="t-reg">bh</span>, <span class="t-reg">bh</span>          <span class="t-comment">; zero upper byte of BX</span></span></div>
+<div class="code-ln"><span class="ln-num">3</span><span><span class="t-instr">mov</span>  <span class="t-reg">bl</span>, <span class="t-reg">al</span>          <span class="t-comment">; BX = ASCII code of base</span></span></div>
+<div class="code-ln"><span class="ln-num">4</span><span><span class="t-instr">lea</span>  <span class="t-reg">bx</span>, <span class="t-label">comp_table</span>[<span class="t-reg">bx</span>] <span class="t-comment">; BX → table entry</span></span></div>
+<div class="code-ln"><span class="ln-num">5</span><span><span class="t-instr">mov</span>  <span class="t-reg">al</span>, [<span class="t-reg">bx</span>]          <span class="t-comment">; AL = complement char</span></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="reveal">
+      <div class="lookup-table">
+        <div class="lt-cell">
+          <div class="lt-from" style="color:var(--green)">A</div>
+          <div class="lt-arrow">↕</div>
+          <div class="lt-to" style="color:var(--amber)">T</div>
+          <div class="lt-hex">41h → 54h</div>
+        </div>
+        <div class="lt-cell">
+          <div class="lt-from" style="color:var(--cyan)">T</div>
+          <div class="lt-arrow">↕</div>
+          <div class="lt-to" style="color:var(--red)">A</div>
+          <div class="lt-hex">54h → 41h</div>
+        </div>
+        <div class="lt-cell">
+          <div class="lt-from" style="color:var(--amber)">C</div>
+          <div class="lt-arrow">↕</div>
+          <div class="lt-to" style="color:var(--green)">G</div>
+          <div class="lt-hex">43h → 47h</div>
+        </div>
+        <div class="lt-cell">
+          <div class="lt-from" style="color:var(--red)">G</div>
+          <div class="lt-arrow">↕</div>
+          <div class="lt-to" style="color:var(--cyan)">C</div>
+          <div class="lt-hex">47h → 43h</div>
+        </div>
+      </div>
+      <p style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); margin-top:20px; text-align:center; letter-spacing:2px;">TRANSLATION TABLE — .DATA SEGMENT</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 5 — GC CONTENT
+════════════════════════════════════════════════ -->
+<section class="slide" id="gc-content" data-label="GC%">
+  <div class="slide-num">05 / 07</div>
+  <div class="feature-layout">
+    <div class="feature-text reveal">
+      <h3>Feature 02</h3>
+      <h2>GC-Content<br>Calculator</h2>
+      <p>Counts G and C occurrences, then computes the percentage using 16-bit <span class="highlight">MUL</span> and <span class="highlight">DIV</span>.</p>
+      <p>Critical detail: <code style="color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:13px;">MUL BX</code> produces a <strong>32-bit</strong> result in DX:AX — always zero DX before DIV.</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dot cd-red"></div>
+          <div class="code-dot cd-yel"></div>
+          <div class="code-dot cd-grn"></div>
+          <span class="code-fname">gc_calc</span>
+        </div>
+        <div class="code-body">
+<div class="code-ln"><span class="ln-num">1</span><span><span class="t-instr">mov</span>  <span class="t-reg">ax</span>, <span class="t-label">gc_count</span>   <span class="t-comment">; AX = number of G/C bases</span></span></div>
+<div class="code-ln"><span class="ln-num">2</span><span><span class="t-instr">mov</span>  <span class="t-reg">bx</span>, <span class="t-num">100</span>         <span class="t-comment">; scale factor</span></span></div>
+<div class="code-ln"><span class="ln-num">3</span><span><span class="t-instr">mul</span>  <span class="t-reg">bx</span>             <span class="t-comment">; DX:AX = gc_count × 100</span></span></div>
+<div class="code-ln"><span class="ln-num">4</span><span><span class="t-instr">mov</span>  <span class="t-reg">bx</span>, <span class="t-label">seq_len</span>    <span class="t-comment">; denominator</span></span></div>
+<div class="code-ln"><span class="ln-num">5</span><span><span class="t-instr">div</span>  <span class="t-reg">bx</span>             <span class="t-comment">; AX = GC% integer result</span></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="reveal" id="gc-viz">
+      <div class="gc-meter">
+        <p style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:2px;margin-bottom:12px;">SEQUENCE · ATGCGATCGTAGC</p>
+        <div class="gc-seq" id="gc-seq-display"></div>
+        <div class="gc-bar-wrap"><div class="gc-bar-fill" id="gc-bar"></div></div>
+        <div class="gc-label">
+          <span>0%</span>
+          <span id="gc-pct-lbl" style="color:var(--green)">0%</span>
+          <span>100%</span>
+        </div>
+        <div class="gc-pct" id="gc-pct-big">0%</div>
+        <p style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);text-align:center;margin-top:8px;">GC-CONTENT = (gc_count × 100) ÷ seq_len</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 6 — MOTIF SEARCH
+════════════════════════════════════════════════ -->
+<section class="slide" id="motif" data-label="Motif">
+  <div class="slide-num">06 / 07</div>
+  <div class="feature-layout">
+    <div class="feature-text reveal">
+      <h3>Feature 03</h3>
+      <h2>3-Base Motif<br>Search</h2>
+      <p>A <span class="highlight">sliding window</span> of size 3 scans the main sequence. At each position three back-to-back <code style="color:var(--cyan);font-family:'JetBrains Mono',monospace">CMP</code> instructions check for a full match.</p>
+      <p>Uses SI and DI as pointer registers — the classic 8086 string-processing idiom.</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dot cd-red"></div>
+          <div class="code-dot cd-yel"></div>
+          <div class="code-dot cd-grn"></div>
+          <span class="code-fname">motif_outer</span>
+        </div>
+        <div class="code-body">
+<div class="code-ln"><span class="ln-num">1</span><span><span class="t-instr">lea</span>  <span class="t-reg">si</span>, <span class="t-label">dna_buf</span>      <span class="t-comment">; SI → sequence start</span></span></div>
+<div class="code-ln"><span class="ln-num">2</span><span><span class="t-instr">add</span>  <span class="t-reg">si</span>, <span class="t-label">found_idx</span>   <span class="t-comment">; offset by window position</span></span></div>
+<div class="code-ln"><span class="ln-num">3</span><span><span class="t-instr">lea</span>  <span class="t-reg">di</span>, <span class="t-label">mot_buf</span>      <span class="t-comment">; DI → motif buffer</span></span></div>
+<div class="code-ln"><span class="ln-num">4</span><span><span class="t-instr">mov</span>  <span class="t-reg">al</span>, [<span class="t-reg">si</span>]         <span class="t-comment">; compare position 0</span></span></div>
+<div class="code-ln"><span class="ln-num">5</span><span><span class="t-instr">cmp</span>  <span class="t-reg">al</span>, [<span class="t-reg">di</span>]  </span></div>
+<div class="code-ln"><span class="ln-num">6</span><span><span class="t-kw">jne</span>  <span class="t-label">MOTIF_NEXT</span>      <span class="t-comment">; mismatch → slide window</span></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="reveal">
+      <div class="motif-scan">
+        <p style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:2px;margin-bottom:16px;">SEQUENCE · SEARCHING FOR <span style="color:var(--cyan)">ATG</span></p>
+        <div class="motif-seq-row" id="motif-row"></div>
+        <div class="motif-found-badge" id="motif-result" style="display:none;">
+          Motif ATG found at index <span id="motif-idx" style="color:var(--amber);margin-left:6px;">0</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 7 — VIVA TIPS
+════════════════════════════════════════════════ -->
+<section class="slide" id="viva" data-label="Viva Tips">
+  <div class="slide-num">07 / 07</div>
+  <div class="center reveal">
+    <div class="section-tag">Defense Preparation</div>
+    <h2 class="section-title">Viva / Defense Tips</h2>
+    <div class="section-line mx-auto"></div>
+  </div>
+  <div class="tips-grid reveal">
+    <div class="tip-card">
+      <div class="tip-num">01</div>
+      <span class="tip-icon" style="color:var(--amber)">◈</span>
+      <div class="tip-title">The ASCII Trick</div>
+      <div class="tip-body">Don't say "I change the letter." Say: <em>"I move a byte from a segmented memory address into the AL register — that's a memory-to-register transfer with associated latency."</em></div>
+      <code class="tip-code">; A = 41h,  T = 54h<br>mov al, [si]  ; mem → reg</code>
+    </div>
+    <div class="tip-card">
+      <div class="tip-num">02</div>
+      <span class="tip-icon" style="color:var(--cyan)">◈</span>
+      <div class="tip-title">The Lookup Table</div>
+      <div class="tip-body">Instead of chained IF/ELSE, a Translation Table in .DATA gives O(1) lookup per base. It's the Assembly-native pattern — fast, no branch mispredictions.</div>
+      <code class="tip-code">lea bx, comp_table[bx]<br>mov al, [bx]  ; 1 mem read</code>
+    </div>
+    <div class="tip-card">
+      <div class="tip-num">03</div>
+      <span class="tip-icon" style="color:var(--green)">◈</span>
+      <div class="tip-title">16-bit Segment Limit</div>
+      <div class="tip-body">A 16-bit segment is exactly 64 KB. Sequences beyond that boundary require segment switching. Keeping the buffer at 100 chars stays safely within one segment.</div>
+      <code class="tip-code">; 100 chars × 1 byte = 100 B<br>; Limit = 65,535 B → safe ✓</code>
+    </div>
+    <div class="tip-card">
+      <div class="tip-num">04</div>
+      <span class="tip-icon" style="color:var(--red)">◈</span>
+      <div class="tip-title">MUL Overflow Risk</div>
+      <div class="tip-body">16-bit MUL produces a 32-bit result split across DX:AX. Failing to zero DX before DIV is the #1 bug in student GC calculators — mention this proactively.</div>
+      <code class="tip-code">mul bx  ; DX:AX = result<br>div bx  ; AX = quotient</code>
+    </div>
+    <div class="tip-card">
+      <div class="tip-num">05</div>
+      <span class="tip-icon" style="color:var(--amber)">◈</span>
+      <div class="tip-title">Stack Discipline</div>
+      <div class="tip-body">Every PUSH must be matched by a POP before RET. The print_word_decimal routine uses PUSH to reverse digit order — explain this LIFO property explicitly.</div>
+      <code class="tip-code">push dx   ; save digit<br>loop …<br>pop  dx   ; LIFO order ✓</code>
+    </div>
+    <div class="tip-card">
+      <div class="tip-num">06</div>
+      <span class="tip-icon" style="color:var(--green)">◈</span>
+      <div class="tip-title">Segment Init</div>
+      <div class="tip-body">On startup, CS is set by DOS but DS is not. The first two instructions — <code>mov ax, @data / mov ds, ax</code> — are mandatory. Without them, data access is undefined.</div>
+      <code class="tip-code">mov ax, @data<br>mov ds, ax  ; MANDATORY</code>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     CREDITS
+════════════════════════════════════════════════ -->
+<section class="slide" id="credits" data-label="End">
+  <div class="credits-title">COAL · End Semester Project</div>
+  <div class="credits-name glow-green">Genomic Sequence Analyzer</div>
+  <div class="credits-seq">
+    <span>A</span><span>T</span><span>G</span><span>C</span>
+    &nbsp;·&nbsp;
+    <span>T</span><span>A</span><span>C</span><span>G</span>
+    &nbsp;·&nbsp;
+    <span>G</span><span>C</span><span>A</span><span>T</span>
+  </div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:3px;margin-top:8px;">
+    16-BIT x86 · TASM · DOSBOX · INT 21h
+  </div>
+</section>
+
+<script>
+// ── DNA CANVAS ANIMATION ──────────────────────────────────
+const canvas = document.getElementById('dna-canvas');
+const ctx = canvas.getContext('2d');
+let W, H, strands = [];
+
+function initCanvas() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  strands = [];
+  const count = Math.floor(W / 120);
+  for (let i = 0; i < count; i++) {
+    strands.push({
+      x: (i + 0.5) * (W / count),
+      phase: Math.random() * Math.PI * 2,
+      speed: 0.003 + Math.random() * 0.003,
+      amp: 30 + Math.random() * 20
+    });
+  }
+}
+
+function drawStrand(s, t) {
+  const cols = ['#00ff88','#00d4ff','#ffb800','#ff4466'];
+  const step = 28;
+  const rungs = Math.ceil(H / step) + 2;
+  for (let i = 0; i < rungs; i++) {
+    const y = i * step - (t * 40) % step;
+    const angle = s.phase + i * 0.35 + t * s.speed * 60;
+    const x1 = s.x + Math.sin(angle) * s.amp;
+    const x2 = s.x + Math.sin(angle + Math.PI) * s.amp;
+
+    // backbone dots
+    ctx.beginPath();
+    ctx.arc(x1, y, 2, 0, Math.PI * 2);
+    ctx.fillStyle = '#00ff88';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(x2, y, 2, 0, Math.PI * 2);
+    ctx.fillStyle = '#00d4ff';
+    ctx.fill();
+
+    // rungs
+    ctx.beginPath();
+    ctx.moveTo(x1, y);
+    ctx.lineTo(x2, y);
+    ctx.strokeStyle = cols[i % 4];
+    ctx.lineWidth = 0.6;
+    ctx.globalAlpha = 0.4;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+}
+
+let t0 = 0;
+function animate(ts) {
+  if (!t0) t0 = ts;
+  const t = (ts - t0) / 1000;
+  ctx.clearRect(0, 0, W, H);
+  strands.forEach(s => drawStrand(s, t));
+  requestAnimationFrame(animate);
+}
+
+initCanvas();
+window.addEventListener('resize', initCanvas);
+requestAnimationFrame(animate);
+
+// ── NAV DOTS ──────────────────────────────────────────────
+const slides = document.querySelectorAll('.slide');
+const navContainer = document.getElementById('nav-dots');
+slides.forEach((slide, i) => {
+  const dot = document.createElement('div');
+  dot.className = 'nav-dot';
+  dot.title = slide.dataset.label || '';
+  dot.addEventListener('click', () => slide.scrollIntoView({ behavior: 'smooth' }));
+  navContainer.appendChild(dot);
+});
+
+function updateNav() {
+  const dots = navContainer.querySelectorAll('.nav-dot');
+  slides.forEach((slide, i) => {
+    const rect = slide.getBoundingClientRect();
+    if (rect.top <= window.innerHeight / 2 && rect.bottom > window.innerHeight / 2) {
+      dots.forEach(d => d.classList.remove('active'));
+      dots[i].classList.add('active');
+    }
+  });
+}
+window.addEventListener('scroll', updateNav);
+updateNav();
+
+// ── REVEAL ON SCROLL ──────────────────────────────────────
+const revealEls = document.querySelectorAll('.reveal');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((e, i) => {
+    if (e.isIntersecting) {
+      setTimeout(() => e.target.classList.add('visible'), i * 120);
+    }
+  });
+}, { threshold: 0.15 });
+revealEls.forEach(el => observer.observe(el));
+
+// ── GC CONTENT VISUALISER ─────────────────────────────────
+const seq = 'ATGCGATCGTAGC';
+const gcSeqEl = document.getElementById('gc-seq-display');
+const gcBar   = document.getElementById('gc-bar');
+const gcPctLbl = document.getElementById('gc-pct-lbl');
+const gcBig    = document.getElementById('gc-pct-big');
+let gcAnimDone = false;
+
+seq.split('').forEach(base => {
+  const el = document.createElement('div');
+  el.className = 'gc-base ' + (['G','C'].includes(base) ? 'is-gc' : 'is-at');
+  el.textContent = base;
+  gcSeqEl.appendChild(el);
+});
+
+const gcObs = new IntersectionObserver(entries => {
+  if (entries[0].isIntersecting && !gcAnimDone) {
+    gcAnimDone = true;
+    const gcCount = seq.split('').filter(b => b === 'G' || b === 'C').length;
+    const pct = Math.round(gcCount / seq.length * 100);
+    setTimeout(() => {
+      gcBar.style.width = pct + '%';
+      let cur = 0;
+      const step = setInterval(() => {
+        if (cur >= pct) { clearInterval(step); return; }
+        cur++;
+        gcPctLbl.textContent = cur + '%';
+        gcBig.textContent = cur + '%';
+      }, 20);
+    }, 400);
+  }
+}, { threshold: 0.5 });
+gcObs.observe(document.getElementById('gc-viz'));
+
+// ── MOTIF SEARCH VISUALISER ───────────────────────────────
+const mainSeq = 'GCTATGCCTAG';
+const motif   = 'ATG';
+const motifRow = document.getElementById('motif-row');
+const motifResult = document.getElementById('motif-result');
+const motifIdxEl  = document.getElementById('motif-idx');
+
+mainSeq.split('').forEach((base, i) => {
+  const el = document.createElement('div');
+  el.className = 'm-base';
+  el.textContent = base;
+  const idx = document.createElement('div');
+  idx.className = 'm-idx';
+  idx.textContent = i;
+  el.appendChild(idx);
+  el.id = 'mb-' + i;
+  motifRow.appendChild(el);
+});
+
+let motifAnimDone = false;
+const motifObs = new IntersectionObserver(entries => {
+  if (entries[0].isIntersecting && !motifAnimDone) {
+    motifAnimDone = true;
+    let pos = 0;
+    const foundAt = mainSeq.indexOf(motif);
+    function step() {
+      document.querySelectorAll('.m-base').forEach(el => el.classList.remove('match'));
+      if (pos > mainSeq.length - 3) return;
+      if (pos === foundAt) {
+        for (let k = 0; k < 3; k++) {
+          const el = document.getElementById('mb-' + (pos + k));
+          if (el) el.classList.add('match');
+        }
+        motifResult.style.display = 'inline-flex';
+        motifIdxEl.textContent = foundAt;
+        return;
+      }
+      for (let k = 0; k < 3; k++) {
+        const el = document.getElementById('mb-' + (pos + k));
+        if (el) el.classList.add('match');
+      }
+      setTimeout(() => {
+        pos++;
+        step();
+      }, 350);
+    }
+    setTimeout(step, 600);
+  }
+}, { threshold: 0.4 });
+motifObs.observe(document.getElementById('motif'));
+
+// ── MOUSE GLOW ────────────────────────────────────────────
+document.querySelectorAll('.slide').forEach(slide => {
+  slide.addEventListener('mousemove', e => {
+    const r = slide.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width * 100).toFixed(1);
+    const y = ((e.clientY - r.top)  / r.height * 100).toFixed(1);
+    slide.style.setProperty('--gx', x + '%');
+    slide.style.setProperty('--gy', y + '%');
+  });
+});
+</script>
+</body>
+</html>
